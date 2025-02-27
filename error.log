@@ -1,0 +1,7 @@
+2025-02-07T01:57:52.635Z - ProtocolError: Protocol error (Runtime.callFunctionOn): Target closed.
+    at C:\Users\Fernando\OneDrive\Documentos\GitHub\automatizar orçamento\actua-bot\node_modules\puppeteer-core\lib\cjs\puppeteer\common\Connection.js:329:24
+    at new Promise (<anonymous>)
+    at CDPSessionImpl.send (C:\Users\Fernando\OneDrive\Documentos\GitHub\automatizar orçamento\actua-bot\node_modules\puppeteer-core\lib\cjs\puppeteer\common\Connection.js:325:16)
+    at ExecutionContext._ExecutionContext_evaluate (C:\Users\Fernando\OneDrive\Documentos\GitHub\automatizar orçamento\actua-bot\node_modules\puppeteer-core\lib\cjs\puppeteer\common\ExecutionContext.js:211:46)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async ExecutionContext.evaluate (C:\Users\Fernando\OneDrive\Documentos\GitHub\automatizar orçamento\actua-bot\node_modules\puppeteer-core\lib\cjs\puppeteer\common\ExecutionContext.js:107:16)

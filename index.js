@@ -1,8 +1,22 @@
 const qrcode = require('qrcode-terminal');
-const { Client } = require('whatsapp-web.js');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const fs = require('fs');
 
-// Configuração do cliente
+// === Tratamento de Erros Globais ===
+function logError(error) {
+    const errorMessage = `${new Date().toISOString()} - ${error.stack || error}\n`;
+    console.error("Erro não tratado:", error);
+    
+    // Escreve no arquivo de log
+    fs.appendFileSync("error.log", errorMessage);
+}
+
+process.on("uncaughtException", logError);
+process.on("unhandledRejection", logError);
+
+// === Configuração do cliente WhatsApp ===
 const client = new Client({
+    authStrategy: new LocalAuth(), // Salva sessão para evitar escanear QR toda vez
     puppeteer: {
         args: ['--no-sandbox']
     }
@@ -640,9 +654,9 @@ const menus = {
     }
 };
 
-// Configuração do cliente WhatsApp
+// === Configuração do QR Code e inicialização ===
 client.on('qr', qr => {
-    qrcode.generate(qr, {small: true});
+    qrcode.generate(qr, { small: true });
     console.log('QR Code gerado! Escaneie-o com seu WhatsApp.');
 });
 
@@ -652,61 +666,62 @@ client.on('ready', () => {
 
 client.initialize();
 
-// Função de delay para controlar o tempo de resposta (renomeada para evitar conflito)
+// Função de delay para controlar o tempo de resposta
 function customDelay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Gerenciamento de mensagens
 client.on('message', async msg => {
-    if (!msg.from.endsWith('@c.us')) return;
+    try {
+        if (!msg.from.endsWith('@c.us')) return;
 
-    const chat = await msg.getChat();
-    const userId = msg.from;
+        const chat = await msg.getChat();
+        const userId = msg.from;
 
-    // Inicializa ou recupera o estado do usuário
-    if (!userStates.has(userId)) {
-        userStates.set(userId, {
-            currentMenu: 'main',
-            lastUpdate: Date.now()
-        });
-    }
+        // Inicializa ou recupera o estado do usuário
+        if (!userStates.has(userId)) {
+            userStates.set(userId, {
+                currentMenu: 'main',
+                lastUpdate: Date.now()
+            });
+        }
 
-    const userState = userStates.get(userId);
-    userState.lastUpdate = Date.now();
+        const userState = userStates.get(userId);
+        userState.lastUpdate = Date.now();
 
-    const userInput = msg.body.toLowerCase().trim();
+        const userInput = msg.body.toLowerCase().trim();
 
-    // Lógica para o menu principal
-    if (['oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite'].includes(userInput)) {
-        userState.currentMenu = 'main';
-    } else if (['regularizacao', 'regularização'].includes(userInput)) {
-        userState.currentMenu = 'regularizacao';
-    } else if (['projeto eletrico', 'projeto elétrico', 'eletrico', 'elétrico'].includes(userInput)) {
-        userState.currentMenu = 'eletrico';
-    } else if (userInput === 'sair') {
-        // Caso o usuário digite "sair"
+        // Lógica para o menu principal
+        if (['oi', 'olá', 'ola', 'bom dia', 'boa tarde', 'boa noite'].includes(userInput)) {
+            userState.currentMenu = 'main';
+        } else if (['regularizacao', 'regularização'].includes(userInput)) {
+            userState.currentMenu = 'regularizacao';
+        } else if (['projeto eletrico', 'projeto elétrico', 'eletrico', 'elétrico'].includes(userInput)) {
+            userState.currentMenu = 'eletrico';
+        } else if (userInput === 'sair') {
+            await chat.sendStateTyping();
+            await customDelay(1000);
+            await client.sendMessage(msg.from, '👋 Você escolheu sair. Até logo!');
+            userState.currentMenu = 'sair';  
+        } else if (!menus[userState.currentMenu] || !menus[userState.currentMenu].options[userInput]) {
+            await chat.sendStateTyping();
+            await customDelay(1000);
+            await client.sendMessage(msg.from, '⚠️ Opção inválida! Por favor, escolha uma opção válida.');
+            await customDelay(1000);
+            await client.sendMessage(msg.from, menus[userState.currentMenu].text); 
+            return;
+        } else {
+            userState.currentMenu = menus[userState.currentMenu].options[userInput];
+        }
+
+        if (userState.currentMenu === 'sair') return;
+
         await chat.sendStateTyping();
         await customDelay(1000);
-        await client.sendMessage(msg.from, '👋 Você escolheu sair. Até logo!');
-        userState.currentMenu = 'sair';  // Define o estado como "sair"
-    } else if (!menus[userState.currentMenu] || !menus[userState.currentMenu].options[userInput]) {
-        // Se o usuário inserir algo inválido em qualquer menu
-        await chat.sendStateTyping();
-        await customDelay(1000);
-        await client.sendMessage(msg.from, '⚠️ Opção inválida! Por favor, escolha uma opção válida.');
-        await customDelay(1000);
-        await client.sendMessage(msg.from, menus[userState.currentMenu].text); // Reenvia o menu atual
-        return; // Encerra a execução aqui para não continuar o fluxo
-    } else {
-        userState.currentMenu = menus[userState.currentMenu].options[userInput];
+        await client.sendMessage(msg.from, menus[userState.currentMenu].text);
+
+    } catch (error) {
+        logError(error);
     }
-
-    // Se o usuário escolheu sair, encerra a interação sem enviar mais mensagens
-    if (userState.currentMenu === 'sair') return;
-
-    // Envia o menu atualizado
-    await chat.sendStateTyping();
-    await customDelay(1000);
-    await client.sendMessage(msg.from, menus[userState.currentMenu].text);
 });
